@@ -21,98 +21,210 @@ use App\Http\Controllers\LiveController;
 use App\Http\Controllers\PodcastController;
 use App\Http\Controllers\TranscriptionController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\WorkflowController;
+use App\Http\Controllers\MessageController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| API Routes v1
 |--------------------------------------------------------------------------
 |
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
+| Routes API versionnées pour l'application Gabon Quotidien Rédac Pro
+| Toutes les routes sont préfixées par /api/v1/
 |
 */
 
-Route::post('login', [AuthController::class, 'login']);
-Route::get('auth/users', [AuthController::class, 'availableUsers']);
+// ============================================================================
+// ROUTES PUBLIQUES (sans authentification)
+// ============================================================================
 
-// Route publique pour la prévisualisation des articles
-Route::get('articles/preview/{slug}', [ArticleController::class, 'publicPreview']);
+Route::prefix('v1')->group(function () {
+    // Authentification
+    Route::post('auth/login', [AuthController::class, 'login']);
 
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('logout', [AuthController::class, 'logout']);
-    Route::get('user/profile', [UserController::class, 'profile']);
-    Route::put('user/profile', [UserController::class, 'updateProfile']);
+    // Routes publiques
+    Route::get('articles/preview/{slug}', [ArticleController::class, 'publicPreview']);
 
-    Route::apiResource('articles', ArticleController::class);
-    Route::get('articles/{article}/preview', [ArticleController::class, 'preview']);
-    Route::patch('articles/{id}/status', [ArticleStatusController::class, 'update']);
-    Route::post('articles/{id}/publish', [ArticlePublishController::class, 'publish']);
-    Route::post('articles/{id}/slug', [ArticleSlugController::class, 'generate']);
-    Route::post('articles/{id}/save', [ArticleController::class, 'save']);
+    // ============================================================================
+    // ROUTES PROTÉGÉES (avec authentification)
+    // ============================================================================
 
-    // Routes du workflow
-    Route::post('articles/{article}/submit-review', [WorkflowController::class, 'submitForReview']);
-    Route::post('articles/{article}/review', [WorkflowController::class, 'review']);
-    Route::post('articles/{article}/approve', [WorkflowController::class, 'approve']);
-    Route::post('articles/{article}/reject', [WorkflowController::class, 'reject']);
-    Route::post('articles/{article}/publish', [WorkflowController::class, 'publish']);
-    Route::get('workflow/pending-articles', [WorkflowController::class, 'pendingArticles']);
-    Route::get('articles/{article}/workflow-history', [WorkflowController::class, 'workflowHistory']);
-    Route::get('workflow/stats', [WorkflowController::class, 'workflowStats']);
+    Route::middleware('auth:sanctum')->group(function () {
 
-    // Routes de messagerie
-    Route::apiResource('messages', MessageController::class)->except(['update']);
-    Route::post('messages/{message}/reply', [MessageController::class, 'reply']);
-    Route::patch('messages/{message}/read', [MessageController::class, 'markAsRead']);
-    Route::patch('messages/{message}/unread', [MessageController::class, 'markAsUnread']);
-    Route::get('messages/unread/count', [MessageController::class, 'unread']);
-    Route::get('conversations', [MessageController::class, 'conversations']);
+        // ============================================================================
+        // AUTHENTIFICATION ET UTILISATEURS
+        // ============================================================================
 
-    Route::apiResource('folders', FolderController::class);
+        Route::prefix('auth')->group(function () {
+            Route::post('logout', [AuthController::class, 'logout']);
+            Route::post('refresh', [AuthController::class, 'refresh']);
+            Route::post('verify-2fa', [AuthController::class, 'verify2FA']);
+            Route::get('users', [AuthController::class, 'availableUsers'])->middleware('permission:users:read');
+        });
 
-    Route::get('articles/{id}/comments', [CommentController::class, 'index']);
-    Route::post('articles/{id}/comments', [CommentController::class, 'store']);
-    Route::put('comments/{id}', [CommentController::class, 'update']);
-    Route::delete('comments/{id}', [CommentController::class, 'destroy']);
+        Route::prefix('users')->group(function () {
+            Route::get('profile', [UserController::class, 'profile']);
+            Route::put('profile', [UserController::class, 'updateProfile']);
+            Route::get('/', [UserController::class, 'index'])->middleware('permission:users:read');
+            Route::get('{user}', [UserController::class, 'show'])->middleware('permission:users:read');
+            Route::put('{user}', [UserController::class, 'update'])->middleware('permission:users:manage');
+            Route::delete('{user}', [UserController::class, 'destroy'])->middleware('permission:users:manage');
+        });
 
-    Route::post('media/upload', [MediaController::class, 'upload']);
-    Route::get('media', [MediaController::class, 'index']);
-    Route::delete('media/{id}', [MediaController::class, 'destroy']);
+        // ============================================================================
+        // ARTICLES ET WORKFLOW
+        // ============================================================================
 
-    Route::get('notifications', [NotificationController::class, 'index']);
-    Route::post('notifications', [NotificationController::class, 'store']);
-    Route::post('notifications/workflow', [NotificationController::class, 'sendWorkflowNotification']);
-    Route::patch('notifications/{id}/read', [NotificationController::class, 'markRead']);
+        Route::prefix('articles')->group(function () {
+            // CRUD Articles
+            Route::get('/', [ArticleController::class, 'index'])->middleware('permission:articles:read');
+            Route::post('/', [ArticleController::class, 'store'])->middleware('permission:articles:write');
+            Route::get('{article}', [ArticleController::class, 'show'])->middleware('permission:articles:read');
+            Route::put('{article}', [ArticleController::class, 'update'])->middleware('permission:articles:write');
+            Route::delete('{article}', [ArticleController::class, 'destroy'])->middleware('permission:articles:own:delete');
 
-    Route::get('team/members', [TeamController::class, 'members']);
-    Route::put('team/members/{user_id}/role', [TeamController::class, 'updateRole']);
-    Route::delete('team/members/{user_id}', [TeamController::class, 'removeMember']);
-    Route::post('team/invitations', [TeamInvitationController::class, 'create']);
-    Route::get('team/invitations/{token}', [TeamInvitationController::class, 'validateToken']);
-    Route::post('team/invitations/{token}/accept', [TeamInvitationController::class, 'accept']);
+            // Actions spécifiques
+            Route::get('{article}/preview', [ArticleController::class, 'preview'])->middleware('permission:articles:read');
+            Route::post('{article}/save', [ArticleController::class, 'save'])->middleware('permission:articles:write');
+            Route::post('{article}/slug', [ArticleSlugController::class, 'generate'])->middleware('permission:articles:write');
+            Route::patch('{article}/status', [ArticleStatusController::class, 'update'])->middleware('permission:articles:write');
 
-    Route::get('publication-schedules', [ScheduleController::class, 'index']);
-    Route::post('articles/{id}/schedule', [ScheduleController::class, 'store']);
-    Route::put('publication-schedules/{schedule_id}', [ScheduleController::class, 'update']);
-    Route::delete('publication-schedules/{schedule_id}', [ScheduleController::class, 'destroy']);
+            // Workflow
+            Route::post('{article}/submit-review', [WorkflowController::class, 'submitForReview'])->middleware('permission:articles:write');
+            Route::post('{article}/review', [WorkflowController::class, 'review'])->middleware('permission:articles:review');
+            Route::post('{article}/approve', [WorkflowController::class, 'approve'])->middleware('permission:articles:approve');
+            Route::post('{article}/reject', [WorkflowController::class, 'reject'])->middleware('permission:articles:approve');
+            Route::post('{article}/publish', [WorkflowController::class, 'publish'])->middleware('permission:articles:publish');
+            Route::get('{article}/workflow-history', [WorkflowController::class, 'workflowHistory'])->middleware('permission:articles:read');
 
-    Route::post('analytics/events', [AnalyticsController::class, 'store']);
-    Route::get('analytics/dashboard', [AnalyticsController::class, 'dashboard']);
+            // Commentaires
+            Route::get('{article}/comments', [CommentController::class, 'index'])->middleware('permission:comments:read');
+            Route::post('{article}/comments', [CommentController::class, 'store'])->middleware('permission:comments:write');
+        });
 
-    Route::post('ai/optimize-title', [AiController::class, 'optimizeTitle']);
-    Route::post('ai/adapt-audience', [AiController::class, 'adaptAudience']);
-    Route::post('ai/generate-content', [AiController::class, 'generateContent']);
-    Route::post('ai/correct-style', [AiController::class, 'correctStyle']);
-    Route::post('ai/seo-suggestions', [AiController::class, 'seoSuggestions']);
+        // Workflow global
+        Route::prefix('workflow')->group(function () {
+            Route::get('pending-articles', [WorkflowController::class, 'pendingArticles'])->middleware('permission:articles:review');
+            Route::get('stats', [WorkflowController::class, 'workflowStats'])->middleware('permission:articles:read');
+        });
 
-    Route::post('lives/start', [LiveController::class, 'start']);
-    Route::post('lives/{live_id}/end', [LiveController::class, 'end']);
-    Route::get('lives/{live_id}/recording', [LiveController::class, 'recording']);
+        // ============================================================================
+        // MESSAGERIE ET COLLABORATION
+        // ============================================================================
 
-    Route::post('podcasts/upload', [PodcastController::class, 'upload']);
-    Route::post('media/{media_id}/transcribe', [TranscriptionController::class, 'transcribe']);
-    Route::get('podcasts/{podcast_id}/snippets', [PodcastController::class, 'snippets']);
+        Route::prefix('messages')->group(function () {
+            Route::get('/', [MessageController::class, 'index'])->middleware('permission:messages:read');
+            Route::post('/', [MessageController::class, 'store'])->middleware('permission:messages:write');
+            Route::get('{message}', [MessageController::class, 'show'])->middleware('permission:messages:read');
+            Route::delete('{message}', [MessageController::class, 'destroy'])->middleware('permission:messages:write');
+            Route::post('{message}/reply', [MessageController::class, 'reply'])->middleware('permission:messages:write');
+            Route::patch('{message}/read', [MessageController::class, 'markAsRead'])->middleware('permission:messages:read');
+            Route::patch('{message}/unread', [MessageController::class, 'markAsUnread'])->middleware('permission:messages:read');
+            Route::get('unread/count', [MessageController::class, 'unread'])->middleware('permission:messages:read');
+        });
 
-    Route::get('audit-logs', [AuditLogController::class, 'index'])->middleware('can:viewAuditLogs');
+        Route::get('conversations', [MessageController::class, 'conversations'])->middleware('permission:messages:read');
+
+        // Commentaires globaux
+        Route::prefix('comments')->group(function () {
+            Route::put('{comment}', [CommentController::class, 'update'])->middleware('permission:comments:write');
+            Route::delete('{comment}', [CommentController::class, 'destroy'])->middleware('permission:comments:write');
+        });
+
+        // ============================================================================
+        // MÉDIAS ET CONTENU MULTIMÉDIA
+        // ============================================================================
+
+        Route::prefix('media')->group(function () {
+            Route::post('upload', [MediaController::class, 'upload'])->middleware('permission:media:upload');
+            Route::get('/', [MediaController::class, 'index'])->middleware('permission:media:read');
+            Route::delete('{media}', [MediaController::class, 'destroy'])->middleware('permission:media:delete');
+            Route::post('{media}/transcribe', [TranscriptionController::class, 'transcribe'])->middleware('permission:media:upload');
+        });
+
+        // Podcasts
+        Route::prefix('podcasts')->group(function () {
+            Route::post('upload', [PodcastController::class, 'upload'])->middleware('permission:media:upload');
+            Route::get('/', [PodcastController::class, 'index'])->middleware('permission:media:read');
+            Route::get('{podcast}/snippets', [PodcastController::class, 'snippets'])->middleware('permission:media:read');
+        });
+
+        // Lives
+        Route::prefix('lives')->group(function () {
+            Route::post('start', [LiveController::class, 'start'])->middleware('permission:media:upload');
+            Route::post('{live}/end', [LiveController::class, 'end'])->middleware('permission:media:upload');
+            Route::get('{live}/recording', [LiveController::class, 'recording'])->middleware('permission:media:read');
+        });
+
+        // ============================================================================
+        // NOTIFICATIONS
+        // ============================================================================
+
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [NotificationController::class, 'index'])->middleware('permission:notifications:read');
+            Route::post('/', [NotificationController::class, 'store'])->middleware('permission:notifications:write');
+            Route::post('workflow', [NotificationController::class, 'sendWorkflowNotification'])->middleware('permission:notifications:write');
+            Route::patch('{notification}/read', [NotificationController::class, 'markRead'])->middleware('permission:notifications:read');
+        });
+
+        // ============================================================================
+        // ÉQUIPE ET INVITATIONS
+        // ============================================================================
+
+        Route::prefix('team')->group(function () {
+            Route::get('members', [TeamController::class, 'members'])->middleware('permission:team:manage');
+            Route::put('members/{user}/role', [TeamController::class, 'updateRole'])->middleware('permission:team:manage');
+            Route::delete('members/{user}', [TeamController::class, 'removeMember'])->middleware('permission:team:manage');
+        });
+
+        Route::prefix('invitations')->group(function () {
+            Route::post('/', [TeamInvitationController::class, 'create'])->middleware('permission:team:manage');
+            Route::get('{token}', [TeamInvitationController::class, 'validateToken']);
+            Route::post('{token}/accept', [TeamInvitationController::class, 'accept']);
+        });
+
+        // ============================================================================
+        // PLANIFICATION ET PUBLICATION
+        // ============================================================================
+
+        Route::prefix('schedules')->group(function () {
+            Route::get('/', [ScheduleController::class, 'index'])->middleware('permission:articles:publish');
+            Route::post('articles/{article}', [ScheduleController::class, 'store'])->middleware('permission:articles:publish');
+            Route::put('{schedule}', [ScheduleController::class, 'update'])->middleware('permission:articles:publish');
+            Route::delete('{schedule}', [ScheduleController::class, 'destroy'])->middleware('permission:articles:publish');
+        });
+
+        // ============================================================================
+        // ANALYTIQUE ET IA
+        // ============================================================================
+
+        Route::prefix('analytics')->group(function () {
+            Route::get('dashboard', [AnalyticsController::class, 'dashboard'])->middleware('permission:analytics:read');
+            Route::post('events', [AnalyticsController::class, 'store'])->middleware('permission:analytics:write');
+        });
+
+        Route::prefix('ai')->group(function () {
+            Route::post('optimize-title', [AiController::class, 'optimizeTitle'])->middleware('permission:articles:write');
+            Route::post('adapt-audience', [AiController::class, 'adaptAudience'])->middleware('permission:articles:write');
+            Route::post('generate-content', [AiController::class, 'generateContent'])->middleware('permission:articles:write');
+            Route::post('correct-style', [AiController::class, 'correctStyle'])->middleware('permission:articles:write');
+            Route::post('seo-suggestions', [AiController::class, 'seoSuggestions'])->middleware('permission:articles:write');
+        });
+
+        // ============================================================================
+        // DOSSIERS
+        // ============================================================================
+
+        Route::apiResource('folders', FolderController::class)->middleware('permission:articles:read');
+
+        // ============================================================================
+        // AUDIT ET CONFORMITÉ
+        // ============================================================================
+
+        Route::prefix('audit')->group(function () {
+            Route::get('logs', [AuditLogController::class, 'index'])->middleware('permission:audit:read');
+            Route::get('logs/{log}', [AuditLogController::class, 'show'])->middleware('permission:audit:read');
+            Route::get('logs/export', [AuditLogController::class, 'export'])->middleware('permission:audit:read');
+        });
+    });
 });
