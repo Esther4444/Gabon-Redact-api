@@ -10,7 +10,7 @@ class ScheduleController extends Controller
 {
 	public function index()
 	{
-		return response()->json(['success' => true, 'data' => PublicationSchedule::with('article')->orderByDesc('scheduled_for')->get()]);
+		return response()->json(['success' => true, 'data' => PublicationSchedule::with('article')->orderByDesc('planifie_pour')->get()]);
 	}
 
 	public function store($id, Request $request)
@@ -22,9 +22,9 @@ class ScheduleController extends Controller
 		]);
 		$schedule = PublicationSchedule::create([
 			'article_id' => $article->id,
-			'scheduled_for' => $validated['scheduled_for'],
-			'channel' => $validated['channel'] ?? null,
-			'status' => 'pending',
+			'planifie_pour' => $validated['scheduled_for'],
+			'canal' => $validated['channel'] ?? null,
+			'statut' => 'pending',
 		]);
 		return response()->json(['success' => true, 'data' => $schedule], 201);
 	}
@@ -37,7 +37,11 @@ class ScheduleController extends Controller
 			'channel' => ['sometimes','nullable','string','max:255'],
 			'status' => ['sometimes','string','in:pending,done,cancelled,failed'],
 		]);
-		$schedule->update($validated);
+		// Mapper les champs
+		if (isset($validated['scheduled_for'])) $schedule->planifie_pour = $validated['scheduled_for'];
+		if (isset($validated['channel'])) $schedule->canal = $validated['channel'];
+		if (isset($validated['status'])) $schedule->statut = $validated['status'];
+		$schedule->save();
 		return response()->json(['success' => true, 'data' => $schedule]);
 	}
 

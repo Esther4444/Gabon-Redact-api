@@ -50,6 +50,13 @@ class UserSeeder extends Seeder
                 'email_verified_at' => now(),
                 'role' => 'journaliste',
             ],
+            [
+                'name' => 'Social Media Manager',
+                'email' => 'socialmedia@redacgabon.com',
+                'password' => Hash::make('password123'),
+                'email_verified_at' => now(),
+                'role' => 'social_media_manager',
+            ],
         ];
 
         foreach ($users as $userData) {
@@ -60,8 +67,8 @@ class UserSeeder extends Seeder
 
             // Créer le profil avec le bon rôle
             $user->profile()->create([
-                'full_name' => $user->name,
-                'avatar_url' => "https://ui-avatars.com/api/?name=" . urlencode($user->name) . "&background=random",
+                'nom_complet' => $user->name,
+                'url_avatar' => "https://ui-avatars.com/api/?name=" . urlencode($user->name) . "&background=random",
                 'role' => $role,
                 'preferences' => json_encode([
                     'theme' => 'light',
@@ -72,7 +79,7 @@ class UserSeeder extends Seeder
             ]);
         }
 
-        // Créer des utilisateurs supplémentaires avec Faker (journalistes)
-        User::factory(5)->create();
+        // Utilisateurs Faker désactivés pour éviter la confusion
+        // User::factory(5)->create();
     }
 }

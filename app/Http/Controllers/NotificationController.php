@@ -3,83 +3,202 @@
 namespace App\Http\Controllers;
 
 use App\Models\Notification;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
 {
-	public function index(Request $request)
-	{
-		$items = Notification::where('user_id', $request->user()->id)->orderByDesc('created_at')->get();
-		return response()->json(['success' => true, 'data' => $items]);
-	}
+    protected NotificationService $notificationService;
 
-	public function store(Request $request)
-	{
-		$validated = $request->validate([
-			'user_id' => ['nullable', 'exists:users,id'],
-			'title' => ['required', 'string', 'max:255'],
-			'message' => ['required', 'string'],
-			'type' => ['nullable', 'string'],
-			'data' => ['nullable', 'array'],
-		]);
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
 
-		// Si user_id n'est pas fourni, utiliser l'utilisateur authentifié
-		if (!$validated['user_id']) {
-			$validated['user_id'] = $request->user()->id;
-		}
+    /**
+     * Obtenir les notifications de l'utilisateur connecté
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $limit = $request->get('limit', 20);
+        $unreadOnly = $request->boolean('unread_only', false);
 
-		$notification = Notification::create($validated);
-		return response()->json(['success' => true, 'data' => $notification], 201);
-	}
+        $notifications = $this->notificationService->getUserNotifications(
+            $user->id,
+            $limit,
+            $unreadOnly
+        );
 
-	public function sendWorkflowNotification(Request $request)
-	{
-		$validated = $request->validate([
-			'type' => ['required', 'string', 'in:article_review_request,article_reviewed,article_approved,article_rejected,article_published'],
-			'title' => ['required', 'string', 'max:255'],
-			'message' => ['required', 'string'],
-			'data' => ['nullable', 'array'],
-			'recipient_role' => ['nullable', 'string', 'in:secretaire_redaction,directeur_publication,journaliste'],
-		]);
+        $unreadCount = $this->notificationService->getUnreadCount($user->id);
 
-		$notification = null;
+        return response()->json([
+            'success' => true,
+            'data' => $notifications,
+            'unread_count' => $unreadCount,
+            'meta' => [
+                'total' => $notifications->count(),
+                'unread_only' => $unreadOnly
+            ]
+        ]);
+    }
 
-		// Si un rôle de destinataire est spécifié, envoyer à tous les utilisateurs de ce rôle
-		if ($validated['recipient_role']) {
-			$users = \App\Models\User::whereHas('profile', function($query) use ($validated) {
-				$query->where('role', $validated['recipient_role']);
-			})->get();
+    /**
+     * Obtenir une notification spécifique
+     */
+    public function show(int $id): JsonResponse
+    {
+        $user = Auth::user();
+        $notification = Notification::forUser($user->id)->find($id);
 
-			foreach ($users as $user) {
-				$notification = Notification::create([
-					'user_id' => $user->id,
-					'title' => $validated['title'],
-					'message' => $validated['message'],
-					'type' => $validated['type'],
-					'data' => $validated['data'],
-				]);
-			}
-		} else {
-			// Sinon, envoyer à l'utilisateur authentifié
-			$notification = Notification::create([
-				'user_id' => $request->user()->id,
-				'title' => $validated['title'],
-				'message' => $validated['message'],
-				'type' => $validated['type'],
-				'data' => $validated['data'],
-			]);
-		}
+        if (!$notification) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Notification non trouvée'
+            ], 404);
+        }
 
-		return response()->json(['success' => true, 'data' => $notification], 201);
-	}
+        return response()->json([
+            'success' => true,
+            'data' => $notification
+        ]);
+    }
 
-	public function markRead($id, Request $request)
-	{
-		$notification = Notification::where('user_id', $request->user()->id)->findOrFail($id);
-		$notification->read = true;
-		$notification->save();
-		return response()->json(['success' => true]);
-	}
+    /**
+     * Marquer une notification comme lue
+     */
+    public function markAsRead(int $id): JsonResponse
+    {
+        $user = Auth::user();
+        $success = $this->notificationService->markAsRead($id, $user->id);
+
+        if (!$success) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Notification non trouvée'
+            ], 404);
+        }
+
+        $unreadCount = $this->notificationService->getUnreadCount($user->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notification marquée comme lue',
+            'unread_count' => $unreadCount
+        ]);
+    }
+
+    /**
+     * Marquer toutes les notifications comme lues
+     */
+    public function markAllAsRead(): JsonResponse
+    {
+        $user = Auth::user();
+        $updated = $this->notificationService->markAllAsRead($user->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$updated} notifications marquées comme lues",
+            'updated_count' => $updated
+        ]);
+    }
+
+    /**
+     * Supprimer une notification
+     */
+    public function destroy(int $id): JsonResponse
+    {
+        $user = Auth::user();
+        $notification = Notification::forUser($user->id)->find($id);
+
+        if (!$notification) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Notification non trouvée'
+            ], 404);
+        }
+
+        $notification->delete();
+        $unreadCount = $this->notificationService->getUnreadCount($user->id);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notification supprimée',
+            'unread_count' => $unreadCount
+        ]);
+    }
+
+    /**
+     * Obtenir le nombre de notifications non lues
+     */
+    public function unreadCount(): JsonResponse
+    {
+        $user = Auth::user();
+        $count = $this->notificationService->getUnreadCount($user->id);
+
+        return response()->json([
+            'success' => true,
+            'unread_count' => $count
+        ]);
+    }
+
+    /**
+     * Nettoyer les anciennes notifications (admin)
+     */
+    public function cleanup(): JsonResponse
+    {
+        $user = Auth::user();
+
+        // Vérifier que l'utilisateur est admin
+        if (!$user->hasRole('admin') && !$user->hasRole('directeur')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Accès non autorisé'
+            ], 403);
+        }
+
+        $deleted = $this->notificationService->cleanupOldNotifications();
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$deleted} anciennes notifications supprimées",
+            'deleted_count' => $deleted
+        ]);
+    }
+
+    /**
+     * Créer une notification de test (dev seulement)
+     */
+    public function createTest(Request $request): JsonResponse
+    {
+        // Vérifier que c'est un environnement de développement
+        if (!app()->environment('local', 'development')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Fonctionnalité disponible uniquement en développement'
+            ], 403);
+        }
+
+        $user = Auth::user();
+        $type = $request->get('type', 'info');
+        $title = $request->get('title', 'Notification de test');
+        $message = $request->get('message', 'Ceci est une notification de test');
+
+        $notification = $this->notificationService->create(
+            $user->id,
+            $type,
+            $title,
+            $message,
+            '/dashboard',
+            ['test' => true]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notification de test créée',
+            'data' => $notification
+        ]);
+    }
 }
-
-

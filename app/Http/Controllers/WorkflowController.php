@@ -26,7 +26,7 @@ class WorkflowController extends Controller
         }
 
         // Vérifier que l'article est en brouillon
-        if ($article->workflow_status !== 'draft') {
+        if ($article->statut_workflow !== 'draft') {
             return response()->json(['error' => 'Article déjà soumis'], 400);
         }
 
@@ -54,7 +54,7 @@ class WorkflowController extends Controller
         }
 
         // Vérifier que l'article est soumis
-        if ($article->workflow_status !== 'submitted') {
+        if ($article->statut_workflow !== 'submitted') {
             return response()->json(['error' => 'Article non soumis'], 400);
         }
 
@@ -83,7 +83,7 @@ class WorkflowController extends Controller
         }
 
         // Vérifier que l'article est en révision
-        if ($article->workflow_status !== 'in_review') {
+        if ($article->statut_workflow !== 'in_review') {
             return response()->json(['error' => 'Article non en révision'], 400);
         }
 
@@ -113,7 +113,7 @@ class WorkflowController extends Controller
         }
 
         // Vérifier que l'article est en révision
-        if ($article->workflow_status !== 'in_review') {
+        if ($article->statut_workflow !== 'in_review') {
             return response()->json(['error' => 'Article non en révision'], 400);
         }
 
@@ -138,7 +138,7 @@ class WorkflowController extends Controller
         }
 
         // Vérifier que l'article est approuvé
-        if ($article->workflow_status !== 'approved') {
+        if ($article->statut_workflow !== 'approved') {
             return response()->json(['error' => 'Article non approuvé'], 400);
         }
 
@@ -160,8 +160,8 @@ class WorkflowController extends Controller
 
         $articles = Article::with(['creator.profile', 'folder', 'workflowSteps'])
             ->where('current_reviewer_id', $user->id)
-            ->whereIn('workflow_status', ['submitted', 'in_review'])
-            ->orderBy('submitted_at', 'desc')
+            ->whereIn('statut_workflow', ['submitted', 'in_review'])
+            ->orderBy('soumis_le', 'desc')
             ->get();
 
         return response()->json([
@@ -195,21 +195,46 @@ class WorkflowController extends Controller
 
         $stats = [
             'my_articles' => [
-                'draft' => Article::where('created_by', $user->id)->where('workflow_status', 'draft')->count(),
-                'submitted' => Article::where('created_by', $user->id)->where('workflow_status', 'submitted')->count(),
-                'in_review' => Article::where('created_by', $user->id)->where('workflow_status', 'in_review')->count(),
-                'approved' => Article::where('created_by', $user->id)->where('workflow_status', 'approved')->count(),
-                'rejected' => Article::where('created_by', $user->id)->where('workflow_status', 'rejected')->count(),
-                'published' => Article::where('created_by', $user->id)->where('workflow_status', 'published')->count(),
+                'draft' => Article::where('created_by', $user->id)->where('statut_workflow', 'draft')->count(),
+                'submitted' => Article::where('created_by', $user->id)->where('statut_workflow', 'submitted')->count(),
+                'in_review' => Article::where('created_by', $user->id)->where('statut_workflow', 'in_review')->count(),
+                'approved' => Article::where('created_by', $user->id)->where('statut_workflow', 'approved')->count(),
+                'rejected' => Article::where('created_by', $user->id)->where('statut_workflow', 'rejected')->count(),
+                'published' => Article::where('created_by', $user->id)->where('statut_workflow', 'published')->count(),
             ],
             'pending_review' => Article::where('current_reviewer_id', $user->id)
-                ->whereIn('workflow_status', ['submitted', 'in_review'])
+                ->whereIn('statut_workflow', ['submitted', 'in_review'])
                 ->count(),
         ];
 
         return response()->json([
             'success' => true,
             'data' => $stats
+        ]);
+    }
+
+    /**
+     * Obtenir le secrétaire de rédaction disponible
+     */
+    public function getSecretary()
+    {
+        $secretary = User::whereHas('profile', function($query) {
+            $query->where('role', 'secretaire_redaction');
+        })->first();
+
+        if ($secretary) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $secretary->id,
+                    'name' => $secretary->name
+                ]
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Aucun secrétaire de rédaction trouvé'
         ]);
     }
 }

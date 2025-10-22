@@ -30,8 +30,8 @@ class ProfileSeeder extends Seeder
 
             Profile::create([
                 'user_id' => $user->id,
-                'full_name' => $user->name,
-                'avatar_url' => 'https://ui-avatars.com/api/?name=' . urlencode($user->name) . '&background=random',
+                'nom_complet' => $user->name,
+                'url_avatar' => 'https://ui-avatars.com/api/?name=' . urlencode($user->name) . '&background=random',
                 'role' => $role,
                 'preferences' => json_encode([
                     'theme' => 'light',

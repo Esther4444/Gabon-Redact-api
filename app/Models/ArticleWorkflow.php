@@ -9,18 +9,20 @@ class ArticleWorkflow extends Model
 {
     use HasFactory;
 
+    protected $table = 'workflow_articles';
+
     protected $fillable = [
         'article_id',
         'from_user_id',
         'to_user_id',
         'action',
-        'status',
-        'comment',
-        'action_at',
+        'statut',
+        'commentaire',
+        'action_le',
     ];
 
     protected $casts = [
-        'action_at' => 'datetime',
+        'action_le' => 'datetime',
     ];
 
     // Relations
@@ -42,12 +44,12 @@ class ArticleWorkflow extends Model
     // Scopes
     public function scopePending($query)
     {
-        return $query->where('status', 'pending');
+        return $query->where('statut', 'pending');
     }
 
     public function scopeCompleted($query)
     {
-        return $query->where('status', 'completed');
+        return $query->where('statut', 'completed');
     }
 
     public function scopeForUser($query, $userId)

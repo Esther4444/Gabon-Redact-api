@@ -12,19 +12,19 @@ class Message extends Model
     protected $fillable = [
         'sender_id',
         'recipient_id',
-        'subject',
-        'body',
-        'is_read',
+        'sujet',
+        'contenu',
+        'est_lu',
         'article_id',
-        'parent_message_id',
-        'attachments',
-        'read_at',
+        'message_parent_id',
+        'pieces_jointes',
+        'lu_le',
     ];
 
     protected $casts = [
-        'is_read' => 'boolean',
-        'attachments' => 'array',
-        'read_at' => 'datetime',
+        'est_lu' => 'boolean',
+        'pieces_jointes' => 'array',
+        'lu_le' => 'datetime',
     ];
 
     // Relations
@@ -45,23 +45,23 @@ class Message extends Model
 
     public function parentMessage()
     {
-        return $this->belongsTo(Message::class, 'parent_message_id');
+        return $this->belongsTo(Message::class, 'message_parent_id');
     }
 
     public function replies()
     {
-        return $this->hasMany(Message::class, 'parent_message_id');
+        return $this->hasMany(Message::class, 'message_parent_id');
     }
 
     // Scopes
     public function scopeUnread($query)
     {
-        return $query->where('is_read', false);
+        return $query->where('est_lu', false);
     }
 
     public function scopeRead($query)
     {
-        return $query->where('is_read', true);
+        return $query->where('est_lu', true);
     }
 
     public function scopeForUser($query, $userId)
@@ -83,22 +83,22 @@ class Message extends Model
     public function markAsRead()
     {
         $this->update([
-            'is_read' => true,
-            'read_at' => now(),
+            'est_lu' => true,
+            'lu_le' => now(),
         ]);
     }
 
     public function markAsUnread()
     {
         $this->update([
-            'is_read' => false,
-            'read_at' => null,
+            'est_lu' => false,
+            'lu_le' => null,
         ]);
     }
 
     public function isReply()
     {
-        return !is_null($this->parent_message_id);
+        return !is_null($this->message_parent_id);
     }
 
     public function hasReplies()

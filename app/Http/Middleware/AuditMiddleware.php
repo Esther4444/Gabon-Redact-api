@@ -83,9 +83,9 @@ class AuditMiddleware
         AuditLog::create([
             'actor_id' => $user?->id,
             'action' => $this->getActionName($request),
-            'entity_type' => $entityType,
-            'entity_id' => $entityId,
-            'context' => [
+            'type_entite' => $entityType ?? 'api_request',
+            'entite_id' => $entityId ?? 0,
+            'contexte' => [
                 'method' => $request->method(),
                 'url' => $request->fullUrl(),
                 'path' => $request->path(),
@@ -96,7 +96,7 @@ class AuditMiddleware
                 'response_time_ms' => $responseTime,
                 'content_length' => strlen($response->getContent()),
             ],
-            'occurred_at' => now()
+            'survenu_le' => now()
         ]);
     }
 

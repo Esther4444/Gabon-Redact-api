@@ -20,7 +20,7 @@ class MessageController extends Controller
 
         // Filtrer par statut de lecture
         if ($request->has('unread_only') && $request->boolean('unread_only')) {
-            $query->where('is_read', false);
+            $query->where('est_lu', false);
         }
 
         // Filtrer par article
@@ -58,10 +58,10 @@ class MessageController extends Controller
         $message = Message::create([
             'sender_id' => Auth::id(),
             'recipient_id' => $request->recipient_id,
-            'subject' => $request->subject,
-            'body' => $request->body,
+            'sujet' => $request->subject,
+            'contenu' => $request->body,
             'article_id' => $request->article_id,
-            'parent_message_id' => $request->parent_message_id,
+            'message_parent_id' => $request->parent_message_id,
         ]);
 
         return response()->json([
@@ -82,7 +82,7 @@ class MessageController extends Controller
         }
 
         // Marquer comme lu si c'est le destinataire
-        if ($message->recipient_id === Auth::id() && !$message->is_read) {
+        if ($message->recipient_id === Auth::id() && !$message->est_lu) {
             $message->markAsRead();
         }
 
@@ -111,10 +111,10 @@ class MessageController extends Controller
         $reply = Message::create([
             'sender_id' => Auth::id(),
             'recipient_id' => $message->sender_id === Auth::id() ? $message->recipient_id : $message->sender_id,
-            'subject' => 'Re: ' . $message->subject,
-            'body' => $request->body,
+            'sujet' => 'Re: ' . $message->sujet,
+            'contenu' => $request->body,
             'article_id' => $message->article_id,
-            'parent_message_id' => $message->id,
+            'message_parent_id' => $message->id,
         ]);
 
         return response()->json([
@@ -182,7 +182,7 @@ class MessageController extends Controller
     public function unread()
     {
         $unreadCount = Message::where('recipient_id', Auth::id())
-            ->where('is_read', false)
+            ->where('est_lu', false)
             ->count();
 
         return response()->json([
@@ -218,7 +218,7 @@ class MessageController extends Controller
                 return [
                     'correspondent' => $correspondent,
                     'latest_message' => $latestMessage,
-                    'unread_count' => $messages->where('recipient_id', Auth::id())->where('is_read', false)->count(),
+                    'unread_count' => $messages->where('recipient_id', Auth::id())->where('est_lu', false)->count(),
                     'total_messages' => $messages->count(),
                 ];
             })

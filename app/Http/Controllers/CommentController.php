@@ -23,7 +23,7 @@ class CommentController extends Controller
 		$comment = Comment::create([
 			'article_id' => $article->id,
 			'author_id' => $request->user()->id,
-			'body' => $validated['body'],
+			'contenu' => $validated['body'],
 		]);
 		return response()->json(['success' => true, 'data' => $comment], 201);
 	}
@@ -34,7 +34,8 @@ class CommentController extends Controller
 		$validated = $request->validate([
 			'body' => ['required','string'],
 		]);
-		$comment->update($validated);
+		$comment->contenu = $validated['body'];
+		$comment->save();
 		return response()->json(['success' => true, 'data' => $comment]);
 	}
 

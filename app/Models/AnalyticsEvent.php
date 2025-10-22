@@ -9,13 +9,15 @@ class AnalyticsEvent extends Model
 {
 	use HasFactory;
 
+	protected $table = 'evenements_analytiques';
+
 	protected $fillable = [
-		'user_id','event_type','properties','occurred_at',
+		'user_id','type_evenement','proprietes','survenu_le',
 	];
 
 	protected $casts = [
-		'properties' => 'array',
-		'occurred_at' => 'datetime',
+		'proprietes' => 'array',
+		'survenu_le' => 'datetime',
 	];
 
 	public function user()

@@ -9,13 +9,15 @@ class AuditLog extends Model
 {
 	use HasFactory;
 
+	protected $table = 'journaux_audit';
+
 	protected $fillable = [
-		'actor_id','action','entity_type','entity_id','context','occurred_at',
+		'actor_id','action','type_entite','entite_id','contexte','survenu_le',
 	];
 
 	protected $casts = [
-		'context' => 'array',
-		'occurred_at' => 'datetime',
+		'contexte' => 'array',
+		'survenu_le' => 'datetime',
 	];
 
 	public function actor()

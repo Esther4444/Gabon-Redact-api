@@ -8,7 +8,7 @@ class AuditLogController extends Controller
 {
 	public function index()
 	{
-		return response()->json(['success' => true, 'data' => AuditLog::orderByDesc('occurred_at')->get()]);
+		return response()->json(['success' => true, 'data' => AuditLog::orderByDesc('survenu_le')->get()]);
 	}
 }
 

@@ -18,17 +18,17 @@ class AnalyticsController extends Controller
 		]);
 		$event = AnalyticsEvent::create([
 			'user_id' => optional($request->user())->id,
-			'event_type' => $validated['event_type'],
-			'properties' => $validated['properties'] ?? [],
-			'occurred_at' => $validated['occurred_at'] ?? now(),
+			'type_evenement' => $validated['event_type'],
+			'proprietes' => $validated['properties'] ?? [],
+			'survenu_le' => $validated['occurred_at'] ?? now(),
 		]);
 		return response()->json(['success' => true, 'data' => $event], 201);
 	}
 
 	public function dashboard(Request $request)
 	{
-		$countsByStatus = Article::select('status', DB::raw('count(*) as total'))
-			->groupBy('status')->pluck('total','status');
+		$countsByStatus = Article::select('statut', DB::raw('count(*) as total'))
+			->groupBy('statut')->pluck('total','statut');
 		return response()->json(['success' => true, 'data' => [
 			'articles_by_status' => $countsByStatus,
 		]]);

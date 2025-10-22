@@ -9,13 +9,15 @@ class TeamInvitation extends Model
 {
 	use HasFactory;
 
+	protected $table = 'invitations_equipe';
+
 	protected $fillable = [
-		'email','role','token','invited_by','expires_at','accepted_at',
+		'email','role','jeton','invited_by','expire_le','accepte_le',
 	];
 
 	protected $casts = [
-		'expires_at' => 'datetime',
-		'accepted_at' => 'datetime',
+		'expire_le' => 'datetime',
+		'accepte_le' => 'datetime',
 	];
 
 	public function inviter()

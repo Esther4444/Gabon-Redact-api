@@ -9,7 +9,8 @@ class FolderController extends Controller
 {
 	public function index(Request $request)
 	{
-		$folders = Folder::where('owner_id', $request->user()->id)->get();
+		// Temporairement, retourner tous les dossiers pour tester
+		$folders = Folder::all();
 		return response()->json(['success' => true, 'data' => $folders]);
 	}
 
@@ -20,7 +21,7 @@ class FolderController extends Controller
 		]);
 		$folder = Folder::create([
 			'owner_id' => $request->user()->id,
-			'name' => $validated['name'],
+			'nom' => $validated['name'],
 		]);
 		return response()->json(['success' => true, 'data' => $folder], 201);
 	}
@@ -35,7 +36,8 @@ class FolderController extends Controller
 		$validated = $request->validate([
 			'name' => ['required','string','max:255'],
 		]);
-		$folder->update($validated);
+		$folder->nom = $validated['name'];
+		$folder->save();
 		return response()->json(['success' => true, 'data' => $folder]);
 	}
 

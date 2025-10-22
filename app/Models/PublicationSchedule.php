@@ -9,12 +9,14 @@ class PublicationSchedule extends Model
 {
 	use HasFactory;
 
+	protected $table = 'planifications_publication';
+
 	protected $fillable = [
-		'article_id','scheduled_for','channel','status','failure_reason',
+		'article_id','planifie_pour','canal','statut','raison_echec',
 	];
 
 	protected $casts = [
-		'scheduled_for' => 'datetime',
+		'planifie_pour' => 'datetime',
 	];
 
 	public function article()

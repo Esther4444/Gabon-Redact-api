@@ -18,7 +18,7 @@ class TeamInvitationController extends Controller
 		$inv = TeamInvitation::create([
 			'email' => $validated['email'],
 			'role' => $validated['role'],
-			'token' => Str::uuid()->toString(),
+			'jeton' => Str::uuid()->toString(),
 			'invited_by' => $request->user()->id,
 		]);
 		return response()->json(['success' => true, 'data' => $inv], 201);
@@ -26,13 +26,13 @@ class TeamInvitationController extends Controller
 
 	public function validateToken($token)
 	{
-		$inv = TeamInvitation::where('token', $token)->firstOrFail();
+		$inv = TeamInvitation::where('jeton', $token)->firstOrFail();
 		return response()->json(['success' => true, 'data' => $inv]);
 	}
 
 	public function accept($token, Request $request)
 	{
-		$inv = TeamInvitation::where('token', $token)->firstOrFail();
+		$inv = TeamInvitation::where('jeton', $token)->firstOrFail();
 		$user = User::firstOrCreate([
 			'email' => $inv->email,
 		], [
@@ -40,10 +40,10 @@ class TeamInvitationController extends Controller
 			'password' => bcrypt(Str::random(16)),
 		]);
 		$user->profile()->updateOrCreate(['user_id' => $user->id], [
-			'full_name' => $user->name,
+			'nom_complet' => $user->name,
 			'role' => $inv->role,
 		]);
-		$inv->accepted_at = now();
+		$inv->accepte_le = now();
 		$inv->save();
 		return response()->json(['success' => true, 'data' => $user]);
 	}

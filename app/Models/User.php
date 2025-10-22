@@ -21,10 +21,10 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'is_active',
-        'last_login_at',
-        'failed_login_attempts',
-        'locked_until',
+        'est_actif',
+        'derniere_connexion_le',
+        'tentatives_connexion_echouees',
+        'verrouille_jusqu_au',
     ];
 
     /**
@@ -45,9 +45,9 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
-        'is_active' => 'boolean',
-        'last_login_at' => 'datetime',
-        'locked_until' => 'datetime',
+        'est_actif' => 'boolean',
+        'derniere_connexion_le' => 'datetime',
+        'verrouille_jusqu_au' => 'datetime',
     ];
 
     /**
@@ -140,7 +140,7 @@ class User extends Authenticatable
      */
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
+        return $query->where('est_actif', true);
     }
 
     /**
@@ -149,8 +149,8 @@ class User extends Authenticatable
     public function scopeNotLocked($query)
     {
         return $query->where(function($q) {
-            $q->whereNull('locked_until')
-              ->orWhere('locked_until', '<', now());
+            $q->whereNull('verrouille_jusqu_au')
+              ->orWhere('verrouille_jusqu_au', '<', now());
         });
     }
 }

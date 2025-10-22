@@ -9,8 +9,10 @@ class Comment extends Model
 {
 	use HasFactory;
 
+	protected $table = 'commentaires';
+
 	protected $fillable = [
-		'article_id','author_id','body',
+		'article_id','author_id','contenu',
 	];
 
 	public function article()

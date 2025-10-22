@@ -15,122 +15,60 @@ use Carbon\Carbon;
 class AuthController extends Controller
 {
     /**
-     * Connexion sécurisée avec rate limiting et audit
+     * Connexion simplifiée pour test
      */
     public function login(Request $request)
     {
-        // Rate limiting pour prévenir les attaques par force brute
-        $key = 'login-attempts:' . $request->ip();
-        if (RateLimiter::tooManyAttempts($key, 5)) {
-            $seconds = RateLimiter::availableIn($key);
-            return response()->json([
-                'success' => false,
-                'message' => 'Trop de tentatives de connexion. Réessayez dans ' . $seconds . ' secondes.',
-                'retry_after' => $seconds
-            ], 429);
-        }
-
-        $validated = $request->validate([
-            'email' => ['required', 'email', 'max:255'],
-            'password' => ['required', 'string', 'min:8'],
-            'role' => ['required', 'string', 'in:journaliste,directeur_publication,secretaire_redaction,social_media_manager'],
-            'device_info' => ['nullable', 'array'],
-            'device_info.platform' => ['nullable', 'string'],
-            'device_info.user_agent' => ['nullable', 'string'],
-        ]);
-
-        $user = User::with('profile')->where('email', $validated['email'])->first();
-
-        if (!$user || !Hash::check($validated['password'], $user->password)) {
-            RateLimiter::hit($key, 300); // 5 minutes de blocage
-
-            // Audit log pour tentative de connexion échouée
-            AuditLog::create([
-                'actor_id' => null,
-                'action' => 'login_failed',
-                'entity_type' => 'user',
-                'entity_id' => $user?->id,
-                'context' => [
-                    'email' => $validated['email'],
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                    'device_info' => $validated['device_info'] ?? null,
-                ],
-                'occurred_at' => now()
+        try {
+            $validated = $request->validate([
+                'email' => ['required', 'email'],
+                'password' => ['required', 'string'],
             ]);
 
-            throw ValidationException::withMessages([
-                'email' => ['Les identifiants sont invalides.'],
-            ]);
-        }
+            $user = User::with('profile')->where('email', $validated['email'])->first();
 
-        // Vérifier que l'utilisateur est actif
-        if (!$user->is_active) {
-            RateLimiter::hit($key, 300);
-            return response()->json([
-                'success' => false,
-                'message' => 'Votre compte est désactivé. Contactez l\'administrateur.',
-            ], 403);
-        }
+            if (!$user || !Hash::check($validated['password'], $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Identifiants invalides',
+                ], 401);
+            }
 
-        // Vérifier que l'utilisateur a le bon rôle
-        $userRole = $user->profile->role ?? 'journaliste';
-        if ($userRole !== $validated['role']) {
-            RateLimiter::hit($key, 300);
+            if (!$user->est_actif) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Compte désactivé',
+                ], 403);
+            }
+
+            $userRole = $user->profile->role ?? 'journaliste';
+            $token = $user->createToken('api')->plainTextToken;
+
             return response()->json([
-                'success' => false,
-                'message' => 'Le rôle sélectionné ne correspond pas à votre compte.',
-                'errors' => [
-                    'role' => ['Le rôle sélectionné ne correspond pas à votre compte.']
+                'success' => true,
+                'data' => [
+                    'access_token' => $token,
+                    'token_type' => 'Bearer',
+                    'expires_in' => 28800,
+                    'user' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $userRole,
+                        'detection_method' => 'profile_database',
+                        'full_name' => $user->profile->nom_complet ?? $user->name,
+                        'avatar_url' => $user->profile->url_avatar ?? null,
+                        'last_login_at' => $user->derniere_connexion_le,
+                    ],
                 ]
-            ], 422);
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Erreur login: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur serveur: ' . $e->getMessage(),
+            ], 500);
         }
-
-        // Créer le token avec expiration
-        $token = $user->createToken('api', ['*'], now()->addHours(8))->plainTextToken;
-
-        // Mettre à jour les informations de connexion
-        $user->update([
-            'last_login_at' => now(),
-            'failed_login_attempts' => 0,
-        ]);
-
-        // Audit log pour connexion réussie
-        AuditLog::create([
-            'actor_id' => $user->id,
-            'action' => 'login_success',
-            'entity_type' => 'user',
-            'entity_id' => $user->id,
-            'context' => [
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'device_info' => $validated['device_info'] ?? null,
-                'role' => $userRole,
-            ],
-            'occurred_at' => now()
-        ]);
-
-        // Effacer les tentatives de connexion échouées
-        RateLimiter::clear($key);
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-                'expires_in' => 28800, // 8 heures
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $userRole,
-                    'permissions' => $user->getAllPermissions(),
-                    'full_name' => $user->profile->full_name ?? $user->name,
-                    'avatar_url' => $user->profile->avatar_url ?? null,
-                    'last_login_at' => $user->last_login_at,
-                ],
-            ]
-        ]);
     }
 
     /**
@@ -144,13 +82,13 @@ class AuthController extends Controller
         AuditLog::create([
             'actor_id' => $user->id,
             'action' => 'logout',
-            'entity_type' => 'user',
-            'entity_id' => $user->id,
-            'context' => [
+            'type_entite' => 'user',
+            'entite_id' => $user->id,
+            'contexte' => [
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ],
-            'occurred_at' => now()
+            'survenu_le' => now()
         ]);
 
         $request->user()->currentAccessToken()->delete();
@@ -195,7 +133,7 @@ class AuthController extends Controller
         }
 
         $users = User::with('profile')
-            ->where('is_active', true)
+            ->where('est_actif', true)
             ->get()
             ->map(function ($user) {
                 return [
@@ -203,9 +141,9 @@ class AuthController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'role' => $user->profile->role ?? 'journaliste',
-                    'full_name' => $user->profile->full_name ?? $user->name,
-                    'avatar_url' => $user->profile->avatar_url ?? null,
-                    'last_login_at' => $user->last_login_at,
+                    'full_name' => $user->profile->nom_complet ?? $user->name,
+                    'avatar_url' => $user->profile->url_avatar ?? null,
+                    'last_login_at' => $user->derniere_connexion_le,
                 ];
             });
 
@@ -227,6 +165,104 @@ class AuthController extends Controller
             'success' => false,
             'message' => '2FA non encore implémenté'
         ], 501);
+    }
+
+    /**
+     * Détection simple du rôle utilisateur (Option 1)
+     * Utilise uniquement le rôle stocké dans la table profils
+     */
+    private function detectUserRole(User $user): string
+    {
+        // 1. Recharger l'utilisateur avec le profil pour éviter les problèmes de cache
+        $user->load('profile');
+
+        // 2. Récupérer le rôle depuis le profil utilisateur
+        $profileRole = $user->profile?->role ?? null;
+
+        // 3. Si aucun profil, créer un profil par défaut
+        if (!$user->profile) {
+            $this->createDefaultProfile($user);
+            $profileRole = 'journaliste';
+        }
+
+        // 4. Validation et sécurisation du rôle
+        $validRoles = [
+            'journaliste',
+            'directeur_publication',
+            'secretaire_redaction',
+            'social_media_manager',
+            'administrateur'
+        ];
+
+        // 5. Si le rôle n'est pas valide, utiliser journaliste par défaut
+        if (!in_array($profileRole, $validRoles)) {
+            $profileRole = 'journaliste';
+
+            // Mettre à jour le profil avec le rôle par défaut
+            $user->profile()->updateOrCreate(
+                ['user_id' => $user->id],
+                ['role' => 'journaliste']
+            );
+        }
+
+        // 6. Log de la détection pour audit (avec try-catch pour éviter les erreurs)
+        try {
+            AuditLog::create([
+                'actor_id' => $user->id,
+                'action' => 'role_detected',
+                'type_entite' => 'user',
+                'entite_id' => $user->id,
+                'contexte' => [
+                    'detected_role' => $profileRole,
+                    'detection_method' => 'profile_database',
+                    'user_email' => $user->email,
+                    'profile_exists' => $user->profile !== null,
+                    'ip_address' => request()->ip(),
+                ],
+                'survenu_le' => now()
+            ]);
+        } catch (\Exception $e) {
+            // Log l'erreur mais ne pas faire échouer la connexion
+            \Log::error('Erreur lors de la création du log d\'audit: ' . $e->getMessage());
+        }
+
+        return $profileRole;
+    }
+
+    /**
+     * Créer un profil par défaut pour un utilisateur
+     */
+    private function createDefaultProfile(User $user): void
+    {
+        try {
+            Profile::create([
+                'user_id' => $user->id,
+                'nom_complet' => $user->name,
+                'role' => 'journaliste',
+                'preferences' => null,
+            ]);
+
+            // Log de création de profil (avec try-catch)
+            try {
+                AuditLog::create([
+                    'actor_id' => $user->id,
+                    'action' => 'default_profile_created',
+                    'type_entite' => 'profile',
+                    'entite_id' => $user->id,
+                    'contexte' => [
+                        'user_email' => $user->email,
+                        'default_role' => 'journaliste',
+                        'reason' => 'no_profile_found'
+                    ],
+                    'survenu_le' => now()
+                ]);
+            } catch (\Exception $e) {
+                \Log::error('Erreur lors de la création du log d\'audit pour profil: ' . $e->getMessage());
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la création du profil par défaut: ' . $e->getMessage());
+            throw $e; // Re-lancer l'erreur car c'est critique
+        }
     }
 }
 

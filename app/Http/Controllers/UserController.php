@@ -13,7 +13,7 @@ class UserController extends Controller
 		// Créer un profil s'il n'existe pas
 		if (!$user->profile) {
 			$user->profile()->create([
-				'full_name' => $user->name,
+				'nom_complet' => $user->name,
 				'role' => 'journaliste',
 			]);
 		}
@@ -35,13 +35,16 @@ class UserController extends Controller
 		// Créer un profil s'il n'existe pas
 		if (!$user->profile) {
 			$user->profile()->create([
-				'full_name' => $user->name,
+				'nom_complet' => $user->name,
 				'role' => 'journaliste',
 			]);
 		}
 
 		$profile = $user->profile;
-		$profile->fill($validated);
+		// Mapper les champs
+		if (isset($validated['full_name'])) $profile->nom_complet = $validated['full_name'];
+		if (isset($validated['avatar_url'])) $profile->url_avatar = $validated['avatar_url'];
+		if (isset($validated['preferences'])) $profile->preferences = $validated['preferences'];
 		$profile->save();
 		return response()->json(['success' => true, 'data' => $profile]);
 	}

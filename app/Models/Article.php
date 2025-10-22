@@ -11,24 +11,37 @@ class Article extends Model
 	use HasFactory, SoftDeletes;
 
 	protected $fillable = [
-		'title','slug','content','status','workflow_status','folder_id','created_by','assigned_to','current_reviewer_id',
-		'seo_title','seo_description','seo_keywords','published_at','submitted_at','reviewed_at','approved_at',
-		'rejection_reason','workflow_history','metadata',
+		'titre','slug','contenu','statut','statut_workflow','dossier_id','created_by','assigned_to','current_reviewer_id',
+		'titre_seo','description_seo','mots_cles_seo','publie_le','soumis_le','relu_le','approuve_le',
+		'raison_rejet','historique_workflow','metadonnees',
+		// Nouveaux champs
+		'category','tags','featured_image','excerpt','reading_time','word_count','character_count',
+		'author_bio','custom_css','custom_js','template','language','is_featured','is_breaking_news',
+		'allow_comments','social_media_data'
 	];
 
 	protected $casts = [
-		'published_at' => 'datetime',
-		'submitted_at' => 'datetime',
-		'reviewed_at' => 'datetime',
-		'approved_at' => 'datetime',
-		'seo_keywords' => 'array',
-		'workflow_history' => 'array',
-		'metadata' => 'array',
+		'publie_le' => 'datetime',
+		'soumis_le' => 'datetime',
+		'relu_le' => 'datetime',
+		'approuve_le' => 'datetime',
+		'mots_cles_seo' => 'array',
+		'historique_workflow' => 'array',
+		'metadonnees' => 'array',
+		// Nouveaux casts
+		'tags' => 'array',
+		'social_media_data' => 'array',
+		'is_featured' => 'boolean',
+		'is_breaking_news' => 'boolean',
+		'allow_comments' => 'boolean',
+		'reading_time' => 'integer',
+		'word_count' => 'integer',
+		'character_count' => 'integer',
 	];
 
 	public function folder()
 	{
-		return $this->belongsTo(Folder::class);
+		return $this->belongsTo(Folder::class, 'dossier_id');
 	}
 
 	public function creator()
@@ -69,7 +82,7 @@ class Article extends Model
 	// Scopes pour le workflow
 	public function scopeByWorkflowStatus($query, $status)
 	{
-		return $query->where('workflow_status', $status);
+		return $query->where('statut_workflow', $status);
 	}
 
 	public function scopeForReviewer($query, $userId)
@@ -79,22 +92,22 @@ class Article extends Model
 
 	public function scopeSubmitted($query)
 	{
-		return $query->where('workflow_status', 'submitted');
+		return $query->where('statut_workflow', 'submitted');
 	}
 
 	public function scopeInReview($query)
 	{
-		return $query->where('workflow_status', 'in_review');
+		return $query->where('statut_workflow', 'in_review');
 	}
 
 	public function scopeApproved($query)
 	{
-		return $query->where('workflow_status', 'approved');
+		return $query->where('statut_workflow', 'approved');
 	}
 
 	public function scopeRejected($query)
 	{
-		return $query->where('workflow_status', 'rejected');
+		return $query->where('statut_workflow', 'rejected');
 	}
 
 	// Constantes pour les statuts de workflow
@@ -111,9 +124,9 @@ class Article extends Model
 	public function submitForReview($reviewerId, $comment = null)
 	{
 		$this->update([
-			'workflow_status' => 'submitted',
+			'statut_workflow' => 'submitted',
 			'current_reviewer_id' => $reviewerId,
-			'submitted_at' => now(),
+			'soumis_le' => now(),
 		]);
 
 		// Créer une étape de workflow
@@ -122,29 +135,29 @@ class Article extends Model
 			'from_user_id' => $this->created_by,
 			'to_user_id' => $reviewerId,
 			'action' => 'submitted',
-			'status' => 'pending',
-			'comment' => $comment,
+			'statut' => 'pending',
+			'commentaire' => $comment,
 		]);
 
 		// Envoyer une notification
-		$this->sendNotification($reviewerId, 'Nouvel article soumis pour révision', $this->title);
+		$this->sendNotification($reviewerId, 'Nouvel article soumis pour révision', $this->titre);
 	}
 
 	public function review($comment = null)
 	{
 		$this->update([
-			'workflow_status' => 'in_review',
-			'reviewed_at' => now(),
+			'statut_workflow' => 'in_review',
+			'relu_le' => now(),
 		]);
 
 		// Mettre à jour l'étape de workflow
-		$workflow = $this->workflowSteps()->where('status', 'pending')->first();
+		$workflow = $this->workflowSteps()->where('statut', 'pending')->first();
 		if ($workflow) {
 			$workflow->update([
-				'status' => 'completed',
+				'statut' => 'completed',
 				'action' => 'reviewed',
-				'comment' => $comment,
-				'action_at' => now(),
+				'commentaire' => $comment,
+				'action_le' => now(),
 			]);
 		}
 
@@ -161,78 +174,78 @@ class Article extends Model
 				'from_user_id' => auth()->id(),
 				'to_user_id' => $director->id,
 				'action' => 'submitted',
-				'status' => 'pending',
-				'comment' => 'Article révisé et prêt pour approbation',
+				'statut' => 'pending',
+				'commentaire' => 'Article révisé et prêt pour approbation',
 			]);
 
-			$this->sendNotification($director->id, 'Article révisé et prêt pour approbation', $this->title);
+			$this->sendNotification($director->id, 'Article révisé et prêt pour approbation', $this->titre);
 		}
 	}
 
 	public function approve($comment = null)
 	{
 		$this->update([
-			'workflow_status' => 'approved',
-			'approved_at' => now(),
+			'statut_workflow' => 'approved',
+			'approuve_le' => now(),
 		]);
 
 		// Mettre à jour l'étape de workflow
-		$workflow = $this->workflowSteps()->where('status', 'pending')->first();
+		$workflow = $this->workflowSteps()->where('statut', 'pending')->first();
 		if ($workflow) {
 			$workflow->update([
-				'status' => 'completed',
+				'statut' => 'completed',
 				'action' => 'approved',
-				'comment' => $comment,
-				'action_at' => now(),
+				'commentaire' => $comment,
+				'action_le' => now(),
 			]);
 		}
 
 		// Notifier l'auteur
-		$this->sendNotification($this->created_by, 'Votre article a été approuvé', $this->title);
+		$this->sendNotification($this->created_by, 'Votre article a été approuvé', $this->titre);
 	}
 
 	public function reject($reason, $comment = null)
 	{
 		$this->update([
-			'workflow_status' => 'rejected',
-			'rejection_reason' => $reason,
+			'statut_workflow' => 'rejected',
+			'raison_rejet' => $reason,
 		]);
 
 		// Mettre à jour l'étape de workflow
-		$workflow = $this->workflowSteps()->where('status', 'pending')->first();
+		$workflow = $this->workflowSteps()->where('statut', 'pending')->first();
 		if ($workflow) {
 			$workflow->update([
-				'status' => 'rejected',
+				'statut' => 'rejected',
 				'action' => 'rejected',
-				'comment' => $comment,
-				'action_at' => now(),
+				'commentaire' => $comment,
+				'action_le' => now(),
 			]);
 		}
 
 		// Notifier l'auteur
-		$this->sendNotification($this->created_by, 'Votre article a été rejeté', $this->title . ' - Raison: ' . $reason);
+		$this->sendNotification($this->created_by, 'Votre article a été rejeté', $this->titre . ' - Raison: ' . $reason);
 	}
 
 	public function publish()
 	{
 		$this->update([
-			'workflow_status' => 'published',
-			'status' => 'published',
-			'published_at' => now(),
+			'statut_workflow' => 'published',
+			'statut' => 'published',
+			'publie_le' => now(),
 		]);
 
 		// Mettre à jour l'étape de workflow
-		$workflow = $this->workflowSteps()->where('status', 'pending')->first();
+		$workflow = $this->workflowSteps()->where('statut', 'pending')->first();
 		if ($workflow) {
 			$workflow->update([
-				'status' => 'completed',
+				'statut' => 'completed',
 				'action' => 'published',
-				'action_at' => now(),
+				'action_le' => now(),
 			]);
 		}
 
 		// Notifier l'auteur
-		$this->sendNotification($this->created_by, 'Votre article a été publié', $this->title);
+		$this->sendNotification($this->created_by, 'Votre article a été publié', $this->titre);
 	}
 
 	private function sendNotification($userId, $message, $title)
@@ -240,12 +253,74 @@ class Article extends Model
 		Notification::create([
 			'user_id' => $userId,
 			'type' => 'workflow',
+			'titre' => $title,
 			'message' => $message,
-			'data' => [
+			'donnees' => [
 				'article_id' => $this->id,
 				'article_title' => $title,
 			],
 		]);
+	}
+
+	// Méthodes utilitaires pour les nouveaux champs
+	public function calculateReadingTime()
+	{
+		$wordCount = $this->word_count ?? $this->calculateWordCount();
+		$readingTime = ceil($wordCount / 200); // 200 mots par minute
+		$this->update(['reading_time' => $readingTime]);
+		return $readingTime;
+	}
+
+	public function calculateWordCount()
+	{
+		$content = strip_tags($this->contenu);
+		$wordCount = str_word_count($content);
+		$this->update(['word_count' => $wordCount]);
+		return $wordCount;
+	}
+
+	public function calculateCharacterCount()
+	{
+		$characterCount = strlen(strip_tags($this->contenu));
+		$this->update(['character_count' => $characterCount]);
+		return $characterCount;
+	}
+
+	public function generateExcerpt($length = 150)
+	{
+		$content = strip_tags($this->contenu);
+		$excerpt = substr($content, 0, $length);
+		if (strlen($content) > $length) {
+			$excerpt .= '...';
+		}
+		$this->update(['excerpt' => $excerpt]);
+		return $excerpt;
+	}
+
+	// Scopes pour les nouveaux champs
+	public function scopeByCategory($query, $category)
+	{
+		return $query->where('category', $category);
+	}
+
+	public function scopeFeatured($query)
+	{
+		return $query->where('is_featured', true);
+	}
+
+	public function scopeBreakingNews($query)
+	{
+		return $query->where('is_breaking_news', true);
+	}
+
+	public function scopeByLanguage($query, $language = 'fr')
+	{
+		return $query->where('language', $language);
+	}
+
+	public function scopeWithComments($query)
+	{
+		return $query->where('allow_comments', true);
 	}
 }
 

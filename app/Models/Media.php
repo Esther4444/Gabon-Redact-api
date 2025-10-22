@@ -9,12 +9,14 @@ class Media extends Model
 {
 	use HasFactory;
 
+	protected $table = 'medias';
+
 	protected $fillable = [
-		'user_id','disk','path','mime_type','size_bytes','meta',
+		'user_id','disque','chemin','type_mime','taille_octets','metadonnees',
 	];
 
 	protected $casts = [
-		'meta' => 'array',
+		'metadonnees' => 'array',
 	];
 
 	public function user()

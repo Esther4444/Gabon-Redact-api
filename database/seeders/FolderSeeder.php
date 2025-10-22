@@ -24,22 +24,17 @@ class FolderSeeder extends Seeder
         // Créer exactement 10 dossiers
         $folders = [
             'Actualités Politiques',
-            'Économie & Business',
+            'Économie',
             'Sports',
-            'Culture & Société',
+            'Culture',
             'International',
-            'Santé & Bien-être',
-            'Technologie',
-            'Environnement',
-            'Éducation',
-            'Brouillons'
         ];
 
         foreach ($folders as $folderName) {
             $user = $users->random();
             Folder::create([
                 'owner_id' => $user->id,
-                'name' => $folderName,
+                'nom' => $folderName,
             ]);
         }
     }
