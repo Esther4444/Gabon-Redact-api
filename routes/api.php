@@ -49,7 +49,16 @@ Route::prefix('v1')->group(function () {
     // ROUTES PROTÉGÉES (avec authentification)
     // ============================================================================
 
-    Route::middleware('auth:sanctum')->group(function () {
+    // Route de test sans authentification
+Route::get('/test-folders', function () {
+    return response()->json([
+        'success' => true,
+        'data' => \App\Models\Folder::all(['id', 'nom', 'description', 'couleur', 'icone']),
+        'message' => 'Test des dossiers sans authentification'
+    ]);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
 
         // ============================================================================
         // AUTHENTIFICATION ET UTILISATEURS
@@ -221,6 +230,9 @@ Route::prefix('v1')->group(function () {
         // ============================================================================
 
         Route::apiResource('folders', FolderController::class)->middleware('permission:articles:read');
+        Route::get('folders/{folder}/stats', [FolderController::class, 'stats'])->middleware('permission:articles:read');
+        Route::get('folders/hierarchy', [FolderController::class, 'hierarchy'])->middleware('permission:articles:read');
+        Route::get('folders/most-active', [FolderController::class, 'mostActive'])->middleware('permission:articles:read');
 
         // ============================================================================
         // AUDIT ET CONFORMITÉ
