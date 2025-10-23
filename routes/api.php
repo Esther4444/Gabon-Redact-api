@@ -99,12 +99,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('{article}/status', [ArticleStatusController::class, 'update']);
 
             // Workflow (permissions vérifiées dans les controllers)
-            Route::post('{article}/submit-review', [WorkflowController::class, 'submitForReview']);
-            Route::post('{article}/review', [WorkflowController::class, 'review']);
-            Route::post('{article}/approve', [WorkflowController::class, 'approve']);
-            Route::post('{article}/reject', [WorkflowController::class, 'reject']);
-            Route::post('{article}/publish', [WorkflowController::class, 'publish']);
-            Route::get('{article}/workflow-history', [WorkflowController::class, 'workflowHistory']);
+            Route::post('{article}/submit-for-review', [ArticleController::class, 'submitForReview']);
+            Route::post('{article}/approve', [ArticleController::class, 'approve']);
+            Route::post('{article}/reject', [ArticleController::class, 'reject']);
+            Route::post('{article}/share', [ArticleController::class, 'shareArticle']);
 
             // Commentaires
             Route::get('{article}/comments', [CommentController::class, 'index']);

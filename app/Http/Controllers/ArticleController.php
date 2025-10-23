@@ -5,9 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Article;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Services\NotificationService;
+use App\Models\User;
 
 class ArticleController extends Controller
 {
+	protected NotificationService $notificationService;
+
+	public function __construct(NotificationService $notificationService = null)
+	{
+		$this->notificationService = $notificationService ?? app(NotificationService::class);
+	}
+
 	public function index(Request $request)
 	{
 		$perPage = $request->query('per_page', 15); // Par défaut 15 articles par page
@@ -290,6 +299,218 @@ class ArticleController extends Controller
 	{
 		$article->delete();
 		return response()->json(['success' => true], 204);
+	}
+
+	/**
+	 * Soumettre un article pour révision
+	 */
+	public function submitForReview(Request $request, Article $article)
+	{
+		// Vérifier que c'est le créateur
+		if ($article->created_by !== $request->user()->id && !$request->user()->hasPermission('articles:approve')) {
+			return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+		}
+
+		$validated = $request->validate([
+			'reviewer_id' => ['required', 'exists:users,id'],
+			'message' => ['nullable', 'string', 'max:1000']
+		]);
+
+		// Vérifier que le réviseur est secrétaire de rédaction
+		$reviewer = User::find($validated['reviewer_id']);
+		if ($reviewer->profile?->role !== 'secretaire_redaction') {
+			return response()->json([
+				'success' => false,
+				'message' => 'Le réviseur doit être un secrétaire de rédaction'
+			], 422);
+		}
+
+		// Mettre à jour l'article
+		$article->update([
+			'statut' => 'en_relecture',
+			'statut_workflow' => 'submitted',
+			'current_reviewer_id' => $validated['reviewer_id'],
+			'submitted_at' => now(),
+		]);
+
+		// Notifier le réviseur
+		$this->notificationService->notifyUser(
+			$reviewer,
+			'workflow',
+			'Article soumis pour révision',
+			"\"{$article->titre}\" a été soumis par " . $request->user()->name,
+			"/articles/{$article->id}",
+			[
+				'article_id' => $article->id,
+				'article_title' => $article->titre,
+				'submitted_by' => $request->user()->name,
+				'message' => $validated['message'] ?? null
+			],
+			$article->id,
+			'article'
+		);
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Article soumis pour révision',
+			'data' => $article->load(['creator.profile', 'currentReviewer.profile', 'folder'])
+		]);
+	}
+
+	/**
+	 * Approuver un article
+	 */
+	public function approve(Request $request, Article $article)
+	{
+		// Vérifier que c'est le réviseur ou le directeur
+		if ($article->current_reviewer_id !== $request->user()->id && !$request->user()->hasPermission('articles:approve')) {
+			return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+		}
+
+		if ($article->statut !== 'en_relecture') {
+			return response()->json(['success' => false, 'message' => 'Article non en révision'], 422);
+		}
+
+		// Mettre à jour l'article
+		$article->update([
+			'statut' => 'approuve',
+			'statut_workflow' => 'approved',
+			'reviewed_at' => now(),
+		]);
+
+		// Notifier le créateur
+		$creator = $article->creator;
+		$this->notificationService->notifyUser(
+			$creator,
+			'success',
+			'Article approuvé',
+			"\"{$article->titre}\" a été approuvé par " . $request->user()->name,
+			"/articles/{$article->id}",
+			[
+				'article_id' => $article->id,
+				'article_title' => $article->titre,
+				'approved_by' => $request->user()->name
+			],
+			$article->id,
+			'article'
+		);
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Article approuvé',
+			'data' => $article->load(['creator.profile', 'currentReviewer.profile', 'folder'])
+		]);
+	}
+
+	/**
+	 * Rejeter un article
+	 */
+	public function reject(Request $request, Article $article)
+	{
+		// Vérifier que c'est le réviseur ou le directeur
+		if ($article->current_reviewer_id !== $request->user()->id && !$request->user()->hasPermission('articles:approve')) {
+			return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+		}
+
+		if ($article->statut !== 'en_relecture') {
+			return response()->json(['success' => false, 'message' => 'Article non en révision'], 422);
+		}
+
+		$validated = $request->validate([
+			'reason' => ['required', 'string', 'max:1000']
+		]);
+
+		// Mettre à jour l'article
+		$article->update([
+			'statut' => 'brouillon',
+			'statut_workflow' => 'rejected',
+			'rejected_reason' => $validated['reason'],
+			'reviewed_at' => now(),
+			'current_reviewer_id' => null,
+		]);
+
+		// Notifier le créateur avec la raison
+		$creator = $article->creator;
+		$this->notificationService->notifyUser(
+			$creator,
+			'warning',
+			'Article rejeté',
+			"\"{$article->titre}\" a été rejeté. Raison: " . $validated['reason'],
+			"/articles/{$article->id}",
+			[
+				'article_id' => $article->id,
+				'article_title' => $article->titre,
+				'rejected_by' => $request->user()->name,
+				'reason' => $validated['reason']
+			],
+			$article->id,
+			'article'
+		);
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Article rejeté',
+			'data' => $article->load(['creator.profile', 'currentReviewer.profile', 'folder'])
+		]);
+	}
+
+	/**
+	 * Partager un article avec d'autres journalistes
+	 */
+	public function shareArticle(Request $request, Article $article)
+	{
+		// Vérifier que c'est le créateur
+		if ($article->created_by !== $request->user()->id) {
+			return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+		}
+
+		$validated = $request->validate([
+			'user_id' => ['required', 'exists:users,id'],
+			'permission' => ['nullable', 'in:view,edit'],
+			'message' => ['nullable', 'string', 'max:1000']
+		]);
+
+		// Vérifier que l'utilisateur n'est pas le créateur
+		if ($validated['user_id'] === $request->user()->id) {
+			return response()->json(['success' => false, 'message' => 'Impossible de partager avec soi-même'], 422);
+		}
+
+		// Créer le partage
+		$share = \App\Models\ArticleShare::firstOrCreate(
+			[
+				'article_id' => $article->id,
+				'shared_with_user_id' => $validated['user_id']
+			],
+			[
+				'shared_by_user_id' => $request->user()->id,
+				'permission' => $validated['permission'] ?? 'edit',
+				'message' => $validated['message'] ?? null,
+			]
+		);
+
+		// Notifier l'utilisateur avec qui on partage
+		$sharedUser = User::find($validated['user_id']);
+		$this->notificationService->notifyUser(
+			$sharedUser,
+			'collaboration',
+			'Article partagé avec vous',
+			$request->user()->name . " a partagé \"{$article->titre}\" avec vous",
+			"/articles/{$article->id}",
+			[
+				'article_id' => $article->id,
+				'article_title' => $article->titre,
+				'shared_by' => $request->user()->name,
+				'message' => $validated['message'] ?? null
+			],
+			$article->id,
+			'article'
+		);
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Article partagé',
+			'data' => $share
+		], 201);
 	}
 }
 
