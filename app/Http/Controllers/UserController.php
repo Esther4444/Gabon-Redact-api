@@ -3,9 +3,39 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\User;
 
 class UserController extends Controller
 {
+	public function index(Request $request)
+	{
+		$query = User::with('profile');
+		
+		// Filtrer par rôle si spécifié
+		if ($request->has('role')) {
+			$role = $request->get('role');
+			$query->whereHas('profile', function($q) use ($role) {
+				$q->where('role', $role);
+			});
+		}
+		
+		$users = $query->get();
+		
+		return response()->json([
+			'success' => true,
+			'data' => $users->map(function($user) {
+				return [
+					'id' => $user->id,
+					'name' => $user->name,
+					'email' => $user->email,
+					'role' => $user->profile?->role ?? 'journaliste',
+					'full_name' => $user->profile?->nom_complet ?? $user->name,
+					'avatar_url' => $user->profile?->url_avatar,
+				];
+			})
+		]);
+	}
+
 	public function profile(Request $request)
 	{
 		$user = $request->user();
