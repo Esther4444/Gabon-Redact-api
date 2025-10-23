@@ -76,6 +76,63 @@ Route::get('/test-users', function () {
     ]);
 });
 
+// Route de test pour les notifications sans authentification
+Route::get('/test-notifications', function () {
+    try {
+        $notifications = \App\Models\Notification::with('user')->get();
+        return response()->json([
+            'success' => true,
+            'data' => $notifications->map(function($notif) {
+                return [
+                    'id' => $notif->id,
+                    'type' => $notif->type,
+                    'title' => $notif->title,
+                    'message' => $notif->message,
+                    'read' => $notif->read,
+                    'created_at' => $notif->created_at,
+                    'user' => $notif->user?->name
+                ];
+            }),
+            'count' => $notifications->count(),
+            'message' => 'Test des notifications sans authentification'
+        ]);
+    } catch (Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'message' => 'Erreur lors du test des notifications'
+        ]);
+    }
+});
+
+// Route de test pour les articles sans authentification
+Route::get('/test-articles', function () {
+    try {
+        $articles = \App\Models\Article::with(['creator', 'folder'])->get();
+        return response()->json([
+            'success' => true,
+            'data' => $articles->map(function($article) {
+                return [
+                    'id' => $article->id,
+                    'title' => $article->titre,
+                    'status' => $article->statut,
+                    'author' => $article->creator?->name,
+                    'folder' => $article->folder?->nom,
+                    'created_at' => $article->created_at
+                ];
+            }),
+            'count' => $articles->count(),
+            'message' => 'Test des articles sans authentification'
+        ]);
+    } catch (Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'message' => 'Erreur lors du test des articles'
+        ]);
+    }
+});
+
 Route::middleware('auth:sanctum')->group(function () {
 
         // ============================================================================

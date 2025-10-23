@@ -115,7 +115,9 @@ class Article extends Model
 		'draft' => 'En cours de rédaction',
 		'submitted' => 'Soumis pour révision',
 		'in_review' => 'En révision',
-		'approved' => 'Approuvé',
+		'approved_by_secretary' => 'Approuvé par le secrétaire',
+		'approved_by_director' => 'Approuvé par le directeur',
+		'ready_for_social' => 'Prêt pour diffusion sociale',
 		'rejected' => 'Rejeté',
 		'published' => 'Publié',
 	];
@@ -182,26 +184,93 @@ class Article extends Model
 		}
 	}
 
-	public function approve($comment = null)
+	public function approve($comment = null, $user = null)
 	{
-		$this->update([
-			'statut_workflow' => 'approved',
-			'approuve_le' => now(),
-		]);
-
-		// Mettre à jour l'étape de workflow
-		$workflow = $this->workflowSteps()->where('statut', 'pending')->first();
-		if ($workflow) {
-			$workflow->update([
-				'statut' => 'completed',
-				'action' => 'approved',
-				'commentaire' => $comment,
-				'action_le' => now(),
-			]);
+		// Vérifier le rôle de l'utilisateur qui approuve
+		if (!$user) {
+			$user = auth()->user();
 		}
+		$userRole = $user?->profile?->role ?? 'journaliste';
 
-		// Notifier l'auteur
-		$this->sendNotification($this->created_by, 'Votre article a été approuvé', $this->titre);
+		if ($userRole === 'secretaire_redaction') {
+			// Secrétaire approuve → Envoyer au Directeur
+			$this->update([
+				'statut_workflow' => 'approved_by_secretary',
+				'approuve_le' => now(),
+			]);
+
+			// Mettre à jour l'étape de workflow
+			$workflow = $this->workflowSteps()->where('statut', 'pending')->first();
+			if ($workflow) {
+				$workflow->update([
+					'statut' => 'completed',
+					'action' => 'approved_by_secretary',
+					'commentaire' => $comment,
+					'action_le' => now(),
+				]);
+			}
+
+			// Envoyer au directeur de publication
+			$director = User::whereHas('profile', function($q) {
+				$q->where('role', 'directeur_publication');
+			})->first();
+
+			if ($director) {
+				$this->update(['current_reviewer_id' => $director->id]);
+
+				ArticleWorkflow::create([
+					'article_id' => $this->id,
+					'from_user_id' => $user->id,
+					'to_user_id' => $director->id,
+					'action' => 'submitted',
+					'statut' => 'pending',
+					'commentaire' => 'Article approuvé par le secrétaire, prêt pour validation finale',
+				]);
+
+				$this->sendNotification($director->id, 'Article approuvé par le secrétaire', $this->titre);
+			}
+
+		} elseif ($userRole === 'directeur_publication') {
+			// Directeur approuve → Envoyer au Social Media Manager
+			$this->update([
+				'statut_workflow' => 'ready_for_social',
+				'approuve_le' => now(),
+			]);
+
+			// Mettre à jour l'étape de workflow
+			$workflow = $this->workflowSteps()->where('statut', 'pending')->first();
+			if ($workflow) {
+				$workflow->update([
+					'statut' => 'completed',
+					'action' => 'approved_by_director',
+					'commentaire' => $comment,
+					'action_le' => now(),
+				]);
+			}
+
+			// Envoyer au Social Media Manager
+			$socialManager = User::whereHas('profile', function($q) {
+				$q->where('role', 'social_media_manager');
+			})->first();
+
+			if ($socialManager) {
+				$this->update(['current_reviewer_id' => $socialManager->id]);
+
+				ArticleWorkflow::create([
+					'article_id' => $this->id,
+					'from_user_id' => $user->id,
+					'to_user_id' => $socialManager->id,
+					'action' => 'submitted',
+					'statut' => 'pending',
+					'commentaire' => 'Article approuvé par le directeur, prêt pour diffusion sociale',
+				]);
+
+				$this->sendNotification($socialManager->id, 'Article prêt pour diffusion sociale', $this->titre);
+			}
+
+			// Notifier l'auteur
+			$this->sendNotification($this->created_by, 'Votre article a été approuvé par le directeur', $this->titre);
+		}
 	}
 
 	public function reject($reason, $comment = null)

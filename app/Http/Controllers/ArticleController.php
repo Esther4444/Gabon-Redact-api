@@ -371,29 +371,9 @@ class ArticleController extends Controller
 			return response()->json(['success' => false, 'message' => 'Article non en révision'], 422);
 		}
 
-		// Mettre à jour l'article
-		$article->update([
-			'statut' => 'approuve',
-			'statut_workflow' => 'approved',
-			'reviewed_at' => now(),
-		]);
-
-		// Notifier le créateur
-		$creator = $article->creator;
-		$this->notificationService->notifyUser(
-			$creator,
-			'success',
-			'Article approuvé',
-			"\"{$article->titre}\" a été approuvé par " . $request->user()->name,
-			"/articles/{$article->id}",
-			[
-				'article_id' => $article->id,
-				'article_title' => $article->titre,
-				'approved_by' => $request->user()->name
-			],
-			$article->id,
-			'article'
-		);
+		// Appeler la méthode approve du modèle qui gère la logique du workflow
+		$comment = $request->input('comment');
+		$article->approve($comment, $request->user());
 
 		return response()->json([
 			'success' => true,
