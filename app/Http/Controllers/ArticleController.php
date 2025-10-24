@@ -492,6 +492,61 @@ class ArticleController extends Controller
 			'data' => $share
 		], 201);
 	}
+
+	/**
+	 * Récupérer les articles supprimés (corbeille)
+	 */
+	public function trashed(Request $request)
+	{
+		$articles = Article::onlyTrashed()
+			->with(['creator.profile', 'folder'])
+			->where('created_by', $request->user()->id)
+			->orderByDesc('deleted_at')
+			->get();
+
+		return response()->json([
+			'success' => true,
+			'data' => $articles
+		]);
+	}
+
+	/**
+	 * Restaurer un article supprimé
+	 */
+	public function restore(Request $request, $id)
+	{
+		$article = Article::onlyTrashed()->findOrFail($id);
+
+		// Vérifier que c'est le créateur
+		if ($article->created_by !== $request->user()->id && !$request->user()->hasPermission('articles:manage')) {
+			return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+		}
+
+		$article->restore();
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Article restauré',
+			'data' => $article->load(['creator.profile', 'folder'])
+		]);
+	}
+
+	/**
+	 * Supprimer définitivement un article
+	 */
+	public function forceDelete(Request $request, $id)
+	{
+		$article = Article::onlyTrashed()->findOrFail($id);
+
+		// Vérifier que c'est le créateur ou un admin
+		if ($article->created_by !== $request->user()->id && !$request->user()->hasPermission('articles:manage')) {
+			return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+		}
+
+		$article->forceDelete();
+
+		return response()->json(['success' => true], 204);
+	}
 }
 
 

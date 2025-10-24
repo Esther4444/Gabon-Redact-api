@@ -20,9 +20,9 @@ $users = [
 foreach ($users as $email) {
     $user = User::where('email', $email)->first();
     if ($user) {
-        $user->password = Hash::make('password');
+        $user->password = Hash::make('password123');
         $user->save();
-        echo "[OK] Mot de passe reinitialise pour: $email\n";
+        echo "[OK] Mot de passe reinitialise pour: $email (password123)\n";
     } else {
         echo "[ERREUR] Utilisateur non trouve: $email\n";
     }

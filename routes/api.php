@@ -160,6 +160,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // ============================================================================
 
         Route::prefix('articles')->group(function () {
+            // Routes spéciales AVANT les routes avec paramètres
+            Route::get('trashed', [ArticleController::class, 'trashed']);
+
             // CRUD Articles (permissions temporairement désactivées pour debug)
             Route::get('/', [ArticleController::class, 'index']);
             Route::post('/', [ArticleController::class, 'store']);
@@ -178,6 +181,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('{article}/approve', [ArticleController::class, 'approve']);
             Route::post('{article}/reject', [ArticleController::class, 'reject']);
             Route::post('{article}/share', [ArticleController::class, 'shareArticle']);
+
+            // Gestion de la corbeille
+            Route::post('{article}/restore', [ArticleController::class, 'restore']);
+            Route::delete('{article}/force', [ArticleController::class, 'forceDelete']);
 
             // Commentaires
             Route::get('{article}/comments', [CommentController::class, 'index']);
@@ -302,10 +309,26 @@ Route::middleware('auth:sanctum')->group(function () {
         // DOSSIERS
         // ============================================================================
 
-        Route::apiResource('folders', FolderController::class)->middleware('permission:articles:read');
-        Route::get('folders/{folder}/stats', [FolderController::class, 'stats'])->middleware('permission:articles:read');
-        Route::get('folders/hierarchy', [FolderController::class, 'hierarchy'])->middleware('permission:articles:read');
-        Route::get('folders/most-active', [FolderController::class, 'mostActive'])->middleware('permission:articles:read');
+        Route::prefix('folders')->group(function () {
+            // Routes spéciales AVANT les routes avec paramètres
+            Route::get('trashed', [FolderController::class, 'trashed']);
+            Route::get('hierarchy', [FolderController::class, 'hierarchy']);
+            Route::get('most-active', [FolderController::class, 'mostActive']);
+
+            // CRUD Folders
+            Route::get('/', [FolderController::class, 'index']);
+            Route::post('/', [FolderController::class, 'store']);
+            Route::get('{folder}', [FolderController::class, 'show']);
+            Route::put('{folder}', [FolderController::class, 'update']);
+            Route::delete('{folder}', [FolderController::class, 'destroy']);
+
+            // Actions spécifiques
+            Route::get('{folder}/stats', [FolderController::class, 'stats']);
+
+            // Gestion de la corbeille
+            Route::post('{folder}/restore', [FolderController::class, 'restore']);
+            Route::delete('{folder}/force', [FolderController::class, 'forceDelete']);
+        });
 
         // ============================================================================
         // AUDIT ET CONFORMITÉ

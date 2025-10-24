@@ -12,7 +12,7 @@ class Profile extends Model
 	protected $table = 'profils';
 
 	protected $fillable = [
-		'user_id', 'nom_complet', 'url_avatar', 'role', 'preferences',
+		'user_id', 'nom_complet', 'matricule', 'url_avatar', 'role', 'preferences',
 		'bio', 'social_links', 'signature', 'phone', 'department', 'specialization', 'timezone'
 	];
 

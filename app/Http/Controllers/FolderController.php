@@ -144,6 +144,48 @@ class FolderController extends Controller
 			'data' => $folders
 		]);
 	}
+
+	/**
+	 * Récupérer les dossiers supprimés (corbeille)
+	 */
+	public function trashed(Request $request)
+	{
+		$folders = Folder::onlyTrashed()
+			->withCount('articles')
+			->orderByDesc('deleted_at')
+			->get();
+
+		return response()->json([
+			'success' => true,
+			'data' => $folders
+		]);
+	}
+
+	/**
+	 * Restaurer un dossier supprimé
+	 */
+	public function restore(Request $request, $id)
+	{
+		$folder = Folder::onlyTrashed()->findOrFail($id);
+		$folder->restore();
+
+		return response()->json([
+			'success' => true,
+			'message' => 'Dossier restauré',
+			'data' => $folder
+		]);
+	}
+
+	/**
+	 * Supprimer définitivement un dossier
+	 */
+	public function forceDelete(Request $request, $id)
+	{
+		$folder = Folder::onlyTrashed()->findOrFail($id);
+		$folder->forceDelete();
+
+		return response()->json(['success' => true], 204);
+	}
 }
 
 
