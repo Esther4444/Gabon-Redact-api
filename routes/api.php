@@ -232,18 +232,55 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('{media}/transcribe', [TranscriptionController::class, 'transcribe'])->middleware('permission:media:upload');
         });
 
-        // Podcasts
-        Route::prefix('podcasts')->group(function () {
-            Route::post('upload', [PodcastController::class, 'upload'])->middleware('permission:media:upload');
-            Route::get('/', [PodcastController::class, 'index'])->middleware('permission:media:read');
-            Route::get('{podcast}/snippets', [PodcastController::class, 'snippets'])->middleware('permission:media:read');
-        });
+        // ============================================================================
+        // LIVES ET PODCASTS
+        // ============================================================================
 
         // Lives
         Route::prefix('lives')->group(function () {
-            Route::post('start', [LiveController::class, 'start'])->middleware('permission:media:upload');
-            Route::post('{live}/end', [LiveController::class, 'end'])->middleware('permission:media:upload');
-            Route::get('{live}/recording', [LiveController::class, 'recording'])->middleware('permission:media:read');
+            Route::get('/', [LiveController::class, 'index']);
+            Route::post('/', [LiveController::class, 'store']);
+            Route::get('{live}', [LiveController::class, 'show']);
+            Route::put('{live}', [LiveController::class, 'update']);
+            Route::delete('{live}', [LiveController::class, 'destroy']);
+
+            // Actions spécifiques
+            Route::post('{live}/start', [LiveController::class, 'start']);
+            Route::post('{live}/stop', [LiveController::class, 'stop']);
+            Route::get('{live}/recording', [LiveController::class, 'recording']);
+            Route::post('{live}/transcribe', [LiveController::class, 'transcribe']);
+            Route::get('{live}/stats', [LiveController::class, 'stats']);
+        });
+
+        // Podcasts
+        Route::prefix('podcasts')->group(function () {
+            Route::get('/', [PodcastController::class, 'index']);
+            Route::post('/', [PodcastController::class, 'store']);
+            Route::get('{podcast}', [PodcastController::class, 'show']);
+            Route::put('{podcast}', [PodcastController::class, 'update']);
+            Route::delete('{podcast}', [PodcastController::class, 'destroy']);
+
+            // Upload et actions
+            Route::post('upload', [PodcastController::class, 'upload']);
+            Route::post('{podcast}/publish', [PodcastController::class, 'publish']);
+            Route::post('{podcast}/transcribe', [PodcastController::class, 'transcribe']);
+            Route::post('{podcast}/generate-snippets', [PodcastController::class, 'generateSnippets']);
+            Route::get('{podcast}/snippets', [PodcastController::class, 'snippets']);
+            Route::get('{podcast}/stats', [PodcastController::class, 'stats']);
+            Route::post('{podcast}/increment-downloads', [PodcastController::class, 'incrementDownloads']);
+            Route::post('{podcast}/increment-views', [PodcastController::class, 'incrementViews']);
+        });
+
+        // Transcriptions
+        Route::prefix('transcriptions')->group(function () {
+            Route::get('/', [TranscriptionController::class, 'index']);
+            Route::get('{transcription}', [TranscriptionController::class, 'show']);
+            Route::post('transcribe/{mediaId}', [TranscriptionController::class, 'transcribe']);
+            Route::get('{transcription}/status', [TranscriptionController::class, 'status']);
+            Route::get('{transcription}/text', [TranscriptionController::class, 'text']);
+            Route::post('{transcription}/cancel', [TranscriptionController::class, 'cancel']);
+            Route::post('{transcription}/generate-article', [TranscriptionController::class, 'generateArticle']);
+            Route::post('{transcription}/export', [TranscriptionController::class, 'export']);
         });
 
         // ============================================================================
