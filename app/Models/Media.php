@@ -9,7 +9,7 @@ class Media extends Model
 {
 	use HasFactory;
 
-	protected $table = 'medias';
+	protected $table = 'media';
 
 	protected $fillable = [
 		'user_id','disque','chemin','type_mime','taille_octets','metadonnees',

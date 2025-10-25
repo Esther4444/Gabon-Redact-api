@@ -9,7 +9,7 @@ class AuditLog extends Model
 {
 	use HasFactory;
 
-	protected $table = 'journaux_audit';
+	protected $table = 'audit_logs';
 
 	protected $fillable = [
 		'actor_id','action','type_entite','entite_id','contexte','survenu_le',

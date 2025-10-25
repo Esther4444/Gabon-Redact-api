@@ -9,7 +9,7 @@ class ArticleWorkflow extends Model
 {
     use HasFactory;
 
-    protected $table = 'workflow_articles';
+    protected $table = 'article_workflow';
 
     protected $fillable = [
         'article_id',

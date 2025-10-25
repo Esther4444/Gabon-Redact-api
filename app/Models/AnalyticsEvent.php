@@ -9,7 +9,7 @@ class AnalyticsEvent extends Model
 {
 	use HasFactory;
 
-	protected $table = 'evenements_analytiques';
+	protected $table = 'analytics_events';
 
 	protected $fillable = [
 		'user_id','type_evenement','proprietes','survenu_le',

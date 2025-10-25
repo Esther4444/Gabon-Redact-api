@@ -10,7 +10,7 @@ class Folder extends Model
 {
 	use HasFactory, SoftDeletes;
 
-	protected $table = 'dossiers';
+	protected $table = 'folders';
 
 	protected $fillable = [
 		'owner_id', 'nom', 'description', 'color', 'icon', 'parent_id', 'sort_order', 'is_active'
